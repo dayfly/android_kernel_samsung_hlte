@@ -587,6 +587,23 @@ fail:
 	return error;
 }
 
+#ifdef CONFIG_POWERSUSPEND
+static void gpio_keys_power_suspend(struct power_suspend *handler)
+{
+	suspended = true;
+}
+
+static void gpio_keys_power_resume(struct power_suspend *handler)
+{
+	suspended = false;
+}
+
+static struct power_suspend gpio_suspend = {
+	.suspend = gpio_keys_power_suspend,
+	.resume = gpio_keys_power_resume,
+};
+#endif // CONFIG_POWERSUSPEND
+
 #ifdef CONFIG_SENSORS_HALL
 #ifdef CONFIG_SEC_FACTORY
 static void flip_cover_work(struct work_struct *work)
@@ -1169,6 +1186,9 @@ static struct platform_driver gpio_keys_device_driver = {
 
 static int __init gpio_keys_init(void)
 {
+#ifdef CONFIG_POWERSUSPEND
+	register_power_suspend(&gpio_suspend);
+#endif // CONFIG_POWERSUSPEND
 	return platform_driver_register(&gpio_keys_device_driver);
 }
 
