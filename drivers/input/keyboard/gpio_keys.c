@@ -386,6 +386,20 @@ void gpio_sync_worker(bool pwr)
 	schedule_work(&sync_system_work);
 }
 
+static struct input_dev *powerkey_device;
+
+static void press_powerkey(void) {
+	// Press power key
+	input_event(powerkey_device, EV_KEY, KEY_POWER, 1);
+	input_event(powerkey_device, EV_SYN, 0, 0);
+	msleep(50);
+
+	// Release power key
+	input_event(powerkey_device, EV_KEY, KEY_POWER, 0);
+	input_event(powerkey_device, EV_SYN, 0, 0);
+	msleep(50);
+};
+
 static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 {
 	static int64_t homekey_lasttime = 0;
@@ -397,6 +411,10 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 
 	printk(KERN_INFO "%s: %s key is %s\n",
 		__func__, button->desc, state ? "pressed" : "released");
+
+	// Simulate a power key press on home key press for Lollipop
+	if (suspended && (button->code == 172))
+		press_powerkey();
 
 	if (type == EV_ABS) {
 		if (state)
@@ -1186,10 +1204,20 @@ static struct platform_driver gpio_keys_device_driver = {
 
 static int __init gpio_keys_init(void)
 {
+	int ret = platform_driver_register(&gpio_keys_device_driver);
+
 #ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&gpio_suspend);
 #endif // CONFIG_POWERSUSPEND
-	return platform_driver_register(&gpio_keys_device_driver);
+
+	powerkey_device = input_allocate_device();
+	input_set_capability(powerkey_device, EV_KEY, KEY_POWER);
+	powerkey_device->name = "fake_powerkey";
+	powerkey_device->phys = "fake_powerkey/input0";
+	if(input_register_device(powerkey_device))
+		pr_info("%s: failed to register fake_powerkey\n", __func__);
+
+	return ret;
 }
 
 static void __exit gpio_keys_exit(void)
